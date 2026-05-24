@@ -96,6 +96,9 @@ Job-Matching_Supervised-Learning/
 │   ├── unique_job_role_descriptions_v5_structured_cache.csv
 │   └── example_cv_web_developer.pdf
 │
+├── notebooks/
+│   └── evalify_job_matching_custom_transformer_v5_structured_features_training.ipynb
+│
 ├── tests/
 │   └── test_payloads.json
 │
@@ -104,3 +107,4 @@ Job-Matching_Supervised-Learning/
 ├── run_api.py
 ├── requirements.txt
 └── README.md
+
