@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+.env
+.venv/
+venv/
+.ipynb_checkpoints/
+.DS_Store
+
+data/unique_job_role_descriptions_v5_structured_cache.csv
