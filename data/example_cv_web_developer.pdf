@@ -1,0 +1,80 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 1071 >>
+stream
+BT
+/F1 11 Tf
+50 780 Td
+14 TL
+(Andro Pratama) Tj
+T*
+(Web Developer / Backend Developer) Tj
+T*
+() Tj
+T*
+(Professional Summary) Tj
+T*
+(Fresh graduate in Computer Science with experience in web development, backend API,) Tj
+T*
+(data preprocessing, and machine learning prototype development.) Tj
+T*
+() Tj
+T*
+(Technical Skills) Tj
+T*
+(Python, FastAPI, REST API, SQL, Git, JavaScript, HTML, CSS, React, Node.js,) Tj
+T*
+(Pandas, NumPy, TensorFlow, model inference, backend development, frontend development.) Tj
+T*
+() Tj
+T*
+(Project Experience) Tj
+T*
+(Built an AI interview simulation backend with question generation, speech-to-text,) Tj
+T*
+(text-to-speech, filler detection, answer evaluation, and structured API responses.) Tj
+T*
+(Developed REST API endpoints using FastAPI and integrated machine learning artifacts.) Tj
+T*
+() Tj
+T*
+(Education) Tj
+T*
+(Bachelor of Computer Science.) Tj
+T*
+() Tj
+T*
+(Career Objective) Tj
+T*
+(Seeking a Web Developer or Backend Developer role where I can build web applications,) Tj
+T*
+(REST APIs, and AI-powered application features.) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000311 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1434
+%%EOF

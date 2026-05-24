@@ -1,0 +1,11 @@
+{
+  "cv_score": {
+    "resume_text": "Python FastAPI SQL JavaScript React HTML CSS backend API developer with bachelor degree and web projects.",
+    "selected_role": "Web Developer",
+    "top_k": 5
+  },
+  "recommend_jobs": {
+    "resume_text": "Python FastAPI SQL JavaScript React HTML CSS backend API developer with bachelor degree and web projects.",
+    "top_n": 10
+  }
+}
