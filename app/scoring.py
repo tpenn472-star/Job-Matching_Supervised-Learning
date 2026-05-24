@@ -27,6 +27,7 @@ DETAIL_NUMERIC_COLUMNS = [
     "structured_certification_match",
     "semantic_proxy_score",
     "lexical_jaccard",
+    "profile_quality_signal",
     "job_title_similarity",
     "role_keyword_overlap",
     "resume_skill_count",
@@ -45,6 +46,7 @@ RATIO_COLUMNS = [
     "structured_seniority_match",
     "structured_certification_match",
     "semantic_proxy_score",
+    "profile_quality_signal",
     "lexical_jaccard",
     "job_title_similarity",
     "role_keyword_overlap",
@@ -274,7 +276,8 @@ def compute_pair_features_v5(resume_text: str, job_row, extractor, cv_profile: O
         + 0.04 * structured_education_match
         + 0.04 * structured_experience_match
     )
-
+    profile_enrichment = cv_profile.get("_profile_enrichment", {})
+    profile_quality_signal = float(profile_enrichment.get("profile_quality_signal", 50.0)) / 100.0
     return {
         "Resume": resume_text,
         "Job Roles": job_role,
@@ -318,6 +321,7 @@ def compute_pair_features_v5(resume_text: str, job_row, extractor, cv_profile: O
         "structured_seniority_match": structured_seniority_match,
         "structured_certification_match": structured_certification_match,
         "structured_match_score": structured_match_score,
+        "profile_quality_signal": profile_quality_signal,
         # Explanation fields
         "matched_skills": set_to_pipe(matched_skills),
         "missing_skills": set_to_pipe(job_skills - cv_skills),
@@ -328,20 +332,40 @@ def compute_pair_features_v5(resume_text: str, job_row, extractor, cv_profile: O
     }
 
 
-def prepare_raw_inference_frame(resume_text: str, candidate_jobs: pd.DataFrame, extractor) -> pd.DataFrame:
-    cv_profile = extractor.extract_cv_profile(resume_text)
+def prepare_raw_inference_frame(
+    resume_text: str,
+    candidate_jobs: pd.DataFrame,
+    extractor,
+    cv_profile: Optional[dict] = None,
+) -> pd.DataFrame:
+    if cv_profile is None:
+        cv_profile = extractor.extract_cv_profile(resume_text)
+
     rows = [
-        compute_pair_features_v5(resume_text, job_row, extractor=extractor, cv_profile=cv_profile)
+        compute_pair_features_v5(
+            resume_text,
+            job_row,
+            extractor=extractor,
+            cv_profile=cv_profile,
+        )
         for _, job_row in candidate_jobs.iterrows()
     ]
+
     raw_frame = pd.DataFrame(rows)
+
     if raw_frame.empty:
         return raw_frame
 
     # Notebook mengisi missing numeric features berdasarkan feature_config sebelum normalisasi.
     numeric_like_cols = raw_frame.select_dtypes(include=["number"]).columns.tolist()
+
     for col in numeric_like_cols:
-        raw_frame[col] = pd.to_numeric(raw_frame[col], errors="coerce").fillna(0.0).astype(np.float32)
+        raw_frame[col] = (
+            pd.to_numeric(raw_frame[col], errors="coerce")
+            .fillna(0.0)
+            .astype(np.float32)
+        )
+
     return raw_frame
 
 
@@ -355,8 +379,38 @@ def add_core_scores(result: pd.DataFrame, raw_features: pd.DataFrame, probabilit
     result["match_probability"] = np.asarray(probabilities, dtype=float)
     result["fit_score"] = (result["match_probability"].clip(0, 1) * 100).round(2)
     result["structured_score"] = (raw_features["structured_match_score"].clip(0, 1) * 100).round(2)
+
+    profile_signal = (
+        raw_features["profile_quality_signal"]
+        if "profile_quality_signal" in raw_features.columns
+        else pd.Series([0.5] * len(result))
+    )
+
+    profile_signal = (
+        pd.to_numeric(profile_signal, errors="coerce")
+        .fillna(0.5)
+        .clip(0, 1)
+    )
+
+    profile_quality_score = (profile_signal * 100).round(2)
+
+    # User-facing score per job recommendation.
+    result["user_match_score"] = (
+        0.70 * result["fit_score"]
+        + 0.25 * result["structured_score"]
+        + 0.05 * profile_quality_score
+    ).clip(0, 100).round(2)
+
+    # Internal ranking score for sorting.
+    base_ranking = (
+        0.75 * result["fit_score"]
+        + 0.25 * result["structured_score"]
+    )
+
+    profile_multiplier = 0.95 + 0.05 * profile_signal
+
     result["ranking_score"] = (
-        0.75 * result["fit_score"] + 0.25 * result["structured_score"]
+        base_ranking * profile_multiplier
     ).clip(0, 100).round(2)
 
     for col in DETAIL_NUMERIC_COLUMNS:
@@ -386,7 +440,31 @@ def build_user_score_summary(scored_df: pd.DataFrame, top_k: int = 5) -> dict:
             "fit_score_average_top_k": 0.0,
             "fit_score_average_all": 0.0,
             "structured_score_best": 0.0,
+            "structured_score_average_top_k": 0.0,
             "ranking_score_best": 0.0,
+            "ranking_score_average_top_k": 0.0,
+            "final_user_score": 0.0,
+            "user_friendly_score": {
+                "overall_score": 0.0,
+                "fit_score": {
+                    "score": 0.0,
+                    "weight": 0.70,
+                    "source": "average_top_k",
+                    "description": "Average AI fit score from the top matched jobs.",
+                },
+                "structured_score": {
+                    "score": 0.0,
+                    "weight": 0.25,
+                    "source": "best_evidence",
+                    "description": "Best evidence-based score from matched skills, tools, domains, experience, and education.",
+                },
+                "profile_quality_score": {
+                    "score": None,
+                    "weight": 0.05,
+                    "source": "profile_enrichment",
+                    "description": "Resume profile completeness signal extracted from CV.",
+                },
+            },
             "top_k_used": 0,
             "total_candidates_scored": 0,
             "score_policy": "No candidate scored.",
@@ -395,21 +473,85 @@ def build_user_score_summary(scored_df: pd.DataFrame, top_k: int = 5) -> dict:
     scored_df = scored_df.copy().sort_values("ranking_score", ascending=False).reset_index(drop=True)
     top_df = scored_df.head(top_k)
 
+    fit_score_best = round(float(scored_df["fit_score"].max()), 2)
+    fit_score_average_top_k = round(float(top_df["fit_score"].mean()), 2)
+    fit_score_average_all = round(float(scored_df["fit_score"].mean()), 2)
+
+    structured_score_best = round(float(scored_df["structured_score"].max()), 2)
+    structured_score_average_top_k = round(float(top_df["structured_score"].mean()), 2)
+
+    ranking_score_best = round(float(scored_df["ranking_score"].max()), 2)
+    ranking_score_average_top_k = round(float(top_df["ranking_score"].mean()), 2)
+
+    profile_quality_score = None
+    if "profile_quality_signal_pct" in top_df.columns:
+        profile_quality_score = round(
+            float(
+                pd.to_numeric(
+                    top_df["profile_quality_signal_pct"],
+                    errors="coerce",
+                )
+                .fillna(0)
+                .mean()
+            ),
+            2,
+        )
+
+    profile_quality_for_score = (
+        profile_quality_score
+        if profile_quality_score is not None
+        else 50.0
+    )
+
+    # Main user-facing score:
+    # 70% average top_k model fit
+    # 25% best structured evidence
+    # 5% profile quality from enrichment/NER
+    final_user_score = round(
+        0.70 * fit_score_average_top_k
+        + 0.25 * structured_score_best
+        + 0.05 * profile_quality_for_score,
+        2,
+    )
+
     return {
-        "fit_score_best": round(float(scored_df["fit_score"].max()), 2),
-        "fit_score_average_top_k": round(float(top_df["fit_score"].mean()), 2),
-        "fit_score_average_all": round(float(scored_df["fit_score"].mean()), 2),
-        "structured_score_best": round(float(scored_df["structured_score"].max()), 2),
-        "ranking_score_best": round(float(scored_df["ranking_score"].max()), 2),
+        "fit_score_best": fit_score_best,
+        "fit_score_average_top_k": fit_score_average_top_k,
+        "fit_score_average_all": fit_score_average_all,
+        "structured_score_best": structured_score_best,
+        "structured_score_average_top_k": structured_score_average_top_k,
+        "ranking_score_best": ranking_score_best,
+        "ranking_score_average_top_k": ranking_score_average_top_k,
+        "final_user_score": final_user_score,
+        "user_friendly_score": {
+            "overall_score": final_user_score,
+            "fit_score": {
+                "score": fit_score_average_top_k,
+                "weight": 0.70,
+                "source": "average_top_k",
+                "description": "Average AI fit score from the top matched jobs.",
+            },
+            "structured_score": {
+                "score": structured_score_best,
+                "weight": 0.25,
+                "source": "best_evidence",
+                "description": "Best evidence-based score from matched skills, tools, domains, experience, and education.",
+            },
+            "profile_quality_score": {
+                "score": profile_quality_score,
+                "weight": 0.05,
+                "source": "profile_enrichment",
+                "description": "Resume profile completeness signal extracted from CV.",
+            },
+        },
         "top_k_used": int(len(top_df)),
         "total_candidates_scored": int(len(scored_df)),
         "score_policy": (
-            "Use fit_score_average_top_k as the main stable user score; "
-            "show fit_score_best as best-case potential; "
-            "show structured_score_best as best rule-based evidence."
+            "Use user_friendly_score.overall_score as the main user-facing score. "
+            "It combines average top_k AI fit score, best structured evidence score, "
+            "and a small profile quality signal. Individual jobs are still sorted using ranking_score."
         ),
     }
-
 
 def pipe_string_to_list(value) -> list[str]:
     return to_list(pipe_to_set(value))

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 class CVRoleScoreRequest(BaseModel):
@@ -25,6 +25,8 @@ class JobScoreItem(BaseModel):
     fit_score: float
     structured_score: float
     ranking_score: float
+    user_match_score: Optional[float] = None
+    user_friendly_score: Optional[Dict[str, Any]] = None
     structured_skill_match_ratio_pct: float
     structured_tool_match_ratio_pct: float
     structured_domain_match_ratio_pct: float
@@ -32,7 +34,8 @@ class JobScoreItem(BaseModel):
     structured_education_match_pct: float
     evidence: MatchedEvidence
     job_description: str
-
+    profile_quality_signal: Optional[float] = None
+    profile_quality_signal_pct: Optional[float] = None
     # Extra detail agar output FastAPI bisa mengikuti notebook V5.
     match_probability: Optional[float] = None
     structured_project_match_ratio_pct: Optional[float] = None
@@ -58,22 +61,22 @@ class CVRoleScoreResponse(BaseModel):
     fit_score_average_all: float
     structured_score_best: float
     ranking_score_best: float
+    structured_score_average_top_k: Optional[float] = None
+    ranking_score_average_top_k: Optional[float] = None
+    final_user_score: Optional[float] = None
+    user_friendly_score: Optional[Dict[str, Any]] = None
+    ai_explanation: Optional[Dict[str, Any]] = None
     top_k_used: Optional[int] = None
     total_candidates_scored: Optional[int] = None
     score_policy: Optional[str] = None
+    profile_insights: Optional[Dict[str, Any]] = None
     top_matches: List[JobScoreItem]
 
 
 class JobRecommendationResponse(BaseModel):
     total_candidates_scored: int
     top_n: int
-    fit_score_best: Optional[float] = None
-    fit_score_average_top_k: Optional[float] = None
-    fit_score_average_all: Optional[float] = None
-    structured_score_best: Optional[float] = None
-    ranking_score_best: Optional[float] = None
-    top_k_used: Optional[int] = None
-    score_policy: Optional[str] = None
+    profile_insights: Optional[Dict[str, Any]] = None
     recommendations: List[JobScoreItem]
 
 

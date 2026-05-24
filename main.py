@@ -37,11 +37,39 @@ def _as_float_or_none(value):
 
 
 def to_response_item(item: dict) -> JobScoreItem:
+    fit_score = float(item.get("fit_score", 0.0))
+    structured_score = float(item.get("structured_score", 0.0))
+    ranking_score = float(item.get("ranking_score", 0.0))
+    user_match_score = _as_float_or_none(item.get("user_match_score"))
+    profile_quality_score = _as_float_or_none(item.get("profile_quality_signal_pct"))
+
     return JobScoreItem(
         job_role=str(item.get("job_role", "")),
-        fit_score=float(item.get("fit_score", 0.0)),
-        structured_score=float(item.get("structured_score", 0.0)),
-        ranking_score=float(item.get("ranking_score", 0.0)),
+        fit_score=fit_score,
+        structured_score=structured_score,
+        ranking_score=ranking_score,
+        user_match_score=user_match_score,
+        user_friendly_score={
+            "overall_score": user_match_score,
+            "fit_score": {
+                "score": fit_score,
+                "weight": 0.70,
+                "source": "job_model_fit",
+                "description": "AI fit score for this job recommendation.",
+            },
+            "structured_score": {
+                "score": structured_score,
+                "weight": 0.25,
+                "source": "job_evidence",
+                "description": "Evidence-based score from matched skills, tools, domains, experience, and education for this job.",
+            },
+            "profile_quality_score": {
+                "score": profile_quality_score,
+                "weight": 0.05,
+                "source": "profile_enrichment",
+                "description": "Resume profile completeness signal extracted from CV.",
+            },
+        },
         structured_skill_match_ratio_pct=float(item.get("structured_skill_match_ratio_pct", 0.0)),
         structured_tool_match_ratio_pct=float(item.get("structured_tool_match_ratio_pct", 0.0)),
         structured_domain_match_ratio_pct=float(item.get("structured_domain_match_ratio_pct", 0.0)),
@@ -61,6 +89,8 @@ def to_response_item(item: dict) -> JobScoreItem:
         structured_responsibility_overlap_pct=_as_float_or_none(item.get("structured_responsibility_overlap_pct")),
         structured_seniority_match_pct=_as_float_or_none(item.get("structured_seniority_match_pct")),
         structured_certification_match_pct=_as_float_or_none(item.get("structured_certification_match_pct")),
+        profile_quality_signal=_as_float_or_none(item.get("profile_quality_signal")),
+        profile_quality_signal_pct=_as_float_or_none(item.get("profile_quality_signal_pct")),
         semantic_proxy_score_pct=_as_float_or_none(item.get("semantic_proxy_score_pct")),
         lexical_jaccard_pct=_as_float_or_none(item.get("lexical_jaccard_pct")),
         job_title_similarity_pct=_as_float_or_none(item.get("job_title_similarity_pct")),
@@ -149,9 +179,15 @@ def _score_cv_text(resume_text: str, selected_role: str, top_k: int) -> CVRoleSc
             fit_score_average_all=result["fit_score_average_all"],
             structured_score_best=result["structured_score_best"],
             ranking_score_best=result["ranking_score_best"],
+            structured_score_average_top_k=result.get("structured_score_average_top_k"),
+            ranking_score_average_top_k=result.get("ranking_score_average_top_k"),
+            final_user_score=result.get("final_user_score"),
+            user_friendly_score=result.get("user_friendly_score"),
+            ai_explanation=result.get("ai_explanation"),
             top_k_used=result.get("top_k_used"),
             total_candidates_scored=result.get("total_candidates_scored"),
             score_policy=result.get("score_policy"),
+            profile_insights=result.get("profile_insights"),
             top_matches=[to_response_item(x) for x in result["top_matches"]],
         )
     except ValueError as exc:
@@ -172,7 +208,12 @@ def _recommend_jobs_text(
         fit_score_average_all=result.get("fit_score_average_all"),
         structured_score_best=result.get("structured_score_best"),
         ranking_score_best=result.get("ranking_score_best"),
+        structured_score_average_top_k=result.get("structured_score_average_top_k"),
+        ranking_score_average_top_k=result.get("ranking_score_average_top_k"),
+        final_user_score=result.get("final_user_score"),
+        user_friendly_score=result.get("user_friendly_score"),
         top_k_used=result.get("top_k_used"),
         score_policy=result.get("score_policy"),
+        profile_insights=result.get("profile_insights"),
         recommendations=[to_response_item(x) for x in result["recommendations"]],
     )

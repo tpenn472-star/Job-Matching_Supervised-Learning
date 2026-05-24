@@ -7,6 +7,13 @@ class Settings(BaseSettings):
     artifacts_dir: Path = Path("artifacts")
     data_dir: Path = Path("data")
 
+    use_genai_explanation_if_available: bool = True
+    genai_api_key: str = ""
+    genai_model_name: str = "gemini-2.5-flash"
+
+    ner_model_path: Path = Path("artifacts/ner_bilstm_attention_model.keras")
+    ner_vocab_path: Path = Path("artifacts/ner_vocab.json")
+    use_profile_enrichment_if_available: bool = True
     taxonomy_path: Path = Path("artifacts/taxonomy.json")
     metadata_path: Path = Path("artifacts/metadata.json")
     feature_config_path: Path = Path("artifacts/feature_config_v5_structured_features.joblib")
