@@ -7,7 +7,7 @@ python-multipart==0.0.27
 pydantic==2.13.4
 pydantic-settings==2.14.1
 python-dotenv==1.2.2
-tensorflow==2.21.0
-keras==3.14.0
-google-generativeai
+tensorflow==2.16.1
+keras==3.3.3
+google-generativeai==0.8.5
 pypdf==6.12.1
