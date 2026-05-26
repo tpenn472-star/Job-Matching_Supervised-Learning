@@ -170,10 +170,27 @@ class JobMatchingService:
         )
 
     def _load_raw_catalog(self) -> pd.DataFrame:
-        catalog_path = settings.job_catalog_path if Path(settings.job_catalog_path).exists() else settings.fallback_job_catalog_path
-        catalog_path = Path(catalog_path)
+        main_path = Path(settings.job_catalog_path)
+        fallback_path = Path(settings.fallback_job_catalog_path)
+    
+        print("MAIN CATALOG PATH:", main_path)
+        print("MAIN CATALOG EXISTS:", main_path.exists())
+        print("MAIN CATALOG ABSOLUTE:", main_path.resolve())
+    
+        print("FALLBACK CATALOG PATH:", fallback_path)
+        print("FALLBACK CATALOG EXISTS:", fallback_path.exists())
+        print("FALLBACK CATALOG ABSOLUTE:", fallback_path.resolve())
+    
+        catalog_path = main_path if main_path.exists() else fallback_path
+    
+        print("USED CATALOG PATH:", catalog_path)
+        print("USED CATALOG ABSOLUTE:", catalog_path.resolve())
+    
         df = pd.read_csv(catalog_path)
-
+    
+        print("CATALOG COLUMNS:", df.columns.tolist())
+        print("CATALOG FIRST ROW:", df.head(1).to_dict(orient="records"))
+    
         rename_map = {}
         if "Job Description" in df.columns and "job_description" not in df.columns:
             rename_map["Job Description"] = "job_description"
@@ -181,30 +198,36 @@ class JobMatchingService:
             rename_map["Job Roles"] = "job_role"
         if "nama_role" in df.columns and "job_role" not in df.columns:
             rename_map["nama_role"] = "job_role"
+    
         df = df.rename(columns=rename_map)
-
+    
         missing = {"job_role", "job_description"} - set(df.columns)
         if missing:
-            raise ValueError(f"Job catalog missing columns: {missing}")
-
+            raise ValueError(
+                f"Job catalog missing columns: {missing}. "
+                f"Used file: {catalog_path}. "
+                f"Available columns: {df.columns.tolist()}"
+            )
+    
         if "role_group" not in df.columns:
             df["role_group"] = df["job_role"].apply(clean_text)
         if "role_family" not in df.columns:
             df["role_family"] = "unknown"
-
+    
         required_raw_catalog_columns = ["job_role", "job_description", "role_group", "role_family"]
         df = df[required_raw_catalog_columns].copy()
-
+    
         for col in required_raw_catalog_columns:
             df[col] = df[col].fillna("").astype(str).str.strip()
-
+    
         df = df[df["job_role"].ne("") & df["job_description"].ne("")].copy()
         df = df.drop_duplicates(subset=["job_role", "job_description"], keep="first").reset_index(drop=True)
-
+    
         df["source_dataset"] = "unique_job_role_descriptions_v5"
         df["source_file"] = catalog_path.name
         df["source_row_id"] = np.arange(len(df))
         df["role_key"] = df["job_role"].apply(normalize_role_light)
+    
         return df
 
     def _build_or_load_structured_catalog(self, raw_catalog: pd.DataFrame, force_rebuild: bool = False) -> pd.DataFrame:
